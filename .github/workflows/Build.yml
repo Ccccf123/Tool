@@ -214,7 +214,29 @@ jobs:
         for entry in "${files[@]}"; do
             IFS='|' read -r filename url <<< "$entry"
             echo "Downloading: $url"
-            curl -A "Surge iOS/9527" -H "Accept: */*" -f -L -o "Tool-repo/Ruleset/$filename" "$url" || { echo "Download Failed: $url"; exit 1; }
+            if [[ "$url" == *"kelee.one"* ]]; then
+                # kelee.one 需要 Surge iOS 完整请求头模拟，且支持从上次构建降级
+                if curl -A "Surge iOS/9527" \
+                    -H "Accept: */*" \
+                    -H "Accept-Language: zh-CN,zh-Hans;q=0.9" \
+                    -H "Accept-Encoding: gzip, deflate" \
+                    --compressed \
+                    -f -L -o "Tool-repo/Ruleset/$filename" "$url"; then
+                    echo "Downloaded: $filename"
+                else
+                    echo "Download failed: $url"
+                    if [ -f "Tool-repo/Loon/Rules/$filename" ]; then
+                        echo "Falling back to existing file: $filename"
+                        cp "Tool-repo/Loon/Rules/$filename" "Tool-repo/Ruleset/$filename"
+                    else
+                        echo "No fallback available for: $filename"
+                        exit 1
+                    fi
+                fi
+            else
+                # 其他源使用默认 curl 请求头
+                curl -f -L -o "Tool-repo/Ruleset/$filename" "$url" || { echo "Download Failed: $url"; exit 1; }
+            fi
         done
         echo "Files downloaded successfully."
 
